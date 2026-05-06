@@ -202,6 +202,9 @@ async def build_system_prompt_with_memories(user_message: str) -> str:
     if not MEMORY_ENABLED or not MEMORY_EXTRACT_ENABLED:
         return SYSTEM_PROMPT
     
+    if MAX_MEMORIES_INJECT <= 0:
+        return SYSTEM_PROMPT
+    
     try:
         memories = await search_memories(user_message, limit=MAX_MEMORIES_INJECT)
         
@@ -519,6 +522,8 @@ async def _build_basic_cached(
 
 async def build_memory_text(user_message: str) -> str:
     """搜索记忆并格式化为注入文本（分区缓存模式用）"""
+    if MAX_MEMORIES_INJECT <= 0:
+        return ""
     try:
         memories = await search_memories(user_message, limit=MAX_MEMORIES_INJECT)
         if not memories:
