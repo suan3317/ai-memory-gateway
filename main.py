@@ -542,9 +542,18 @@ async def build_partitioned_messages(
         result.append({"role": "user", "content": blocks})
         result.append({"role": "assistant", "content": "好的，我已了解之前的对话内容。"})
     
-    for i, msg in enumerate(a_msgs):
-        m = {k: v for k, v in msg.items() if k not in ('created_at',)}
-        if i == len(a_msgs) - 1 and msg.get('role') != 'tool':
+    # A区：剥离tool消息和tool_calls，只保留有文本的user/assistant（节省上下文）
+    cleaned_a = []
+    for msg in a_msgs:
+        if msg.get('role') == 'tool':
+            continue
+        m = {k: v for k, v in msg.items() if k not in ('created_at', 'tool_calls')}
+        if m.get('role') == 'assistant' and not (m.get('content') or '').strip():
+            continue
+        cleaned_a.append(m)
+    
+    for i, m in enumerate(cleaned_a):
+        if i == len(cleaned_a) - 1 and m.get('role') != 'tool':
             text = m.get('content') or ''
             if isinstance(text, str) and text:
                 m['content'] = [{"type": "text", "text": text, "cache_control": {"type": "ephemeral"}}]
