@@ -271,17 +271,17 @@ async def build_system_prompt_with_memories(user_message: str) -> str:
             memory_lines.append(f"- {date_str}{mem['content']}")
         memory_text = "\n".join(memory_lines)
 
-        enhanced_prompt = f"{current_system_prompt}\n\n[Context Memories]\n{memory_text}"
-        return enhanced_prompt
+        # 这里用三个引号完美开头，把下面的中文规范稳稳包裹在字符串里
+        enhanced_prompt = f"""{current_system_prompt}
 
-    except Exception as e:
-        return current_system_prompt
-        
+【从过往对话中检索到的相关记忆】
+{memory_text}
+
 # 记忆应用
-- 像朋友般自然运用这些记忆,不刻意展示
-- 仅在相关话题出现时引用,避免主动提及
+- 像朋友般自然运用这些记忆，不刻意展示
+- 仅在相关话题出现时引用，避免主动提及
 - 对重要信息（如健康、日期、约定）保持一致性
-- 新信息与记忆冲突时,以新信息为准
+- 新信息与记忆冲突时，以新信息为准
 - 模糊记忆可表达不确定性："记得你似乎说过..."
 
 # 交流方式
@@ -289,15 +289,14 @@ async def build_system_prompt_with_memories(user_message: str) -> str:
 - 避免机械式表达如"根据我的记忆..."或"检索到的信息显示..."
 - 共同经历可温情回忆："上次那个事挺好玩的"
 
-记忆是丰富对话的工具,而非对话焦点。"""
-        
-        print(f"📚 注入了 {len(memories)} 条相关记忆")
-        return enhanced_prompt
-        
-    except Exception as e:
-        print(f"⚠️  记忆检索失败: {e}，使用纯人设")
-        return SYSTEM_PROMPT
+记忆是丰富对话的工具，而非对话焦点。"""
 
+        print(f"🧬 注入了 {len(memories)} 条相关记忆")
+        return enhanced_prompt
+
+    except Exception as e:
+        print(f"⚠️ 记忆检索失败: {e}, 使用纯人设")
+        return current_system_prompt
 
 # ============================================================
 # 分区缓存（Partition Cache）
