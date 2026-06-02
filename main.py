@@ -245,64 +245,32 @@ async def build_system_prompt_with_memories(user_message: str) -> str:
     """
     if not MEMORY_ENABLED or not MEMORY_EXTRACT_ENABLED:
         return SYSTEM_PROMPT
-
+    
     if MAX_MEMORIES_INJECT <= 0:
         return SYSTEM_PROMPT
-
+    
     try:
         memories = await search_memories(user_message, limit=MAX_MEMORIES_INJECT)
-
-        # 当前本地时间
-        now = datetime.now(timezone.utc) + timedelta(hours=TIMEZONE_HOURS)
-
-weekday_map = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
-month_map = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
-current_time_text = (
-    f"[Current Time: "
-    f"{weekday_map[now.weekday()]}, "
-    f"{month_map[now.month-1]} {now.day}, "
-    f"{now.year} "
-    f"{now.strftime('%H:%M')}]"
-)
-
+        
         if not memories:
-            return f"""{SYSTEM_PROMPT}
-
-{current_time_text}
-"""
-
+            return SYSTEM_PROMPT
+        
         # 格式化记忆文本（带日期，帮助模型判断新旧）
         memory_lines = []
-
         for mem in memories:
             date_str = ""
-
             if mem.get("created_at"):
                 try:
                     utc_str = str(mem['created_at'])[:19]
-                    utc_dt = datetime.strptime(
-                        utc_str,
-                        "%Y-%m-%d %H:%M:%S"
-                    ).replace(tzinfo=timezone.utc)
-
+                    utc_dt = datetime.strptime(utc_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
                     local_dt = utc_dt + timedelta(hours=TIMEZONE_HOURS)
-
                     date_str = f"[{local_dt.strftime('%Y-%m-%d')}] "
-
                 except:
                     date_str = f"[{str(mem['created_at'])[:10]}] "
-
-            memory_lines.append(
-                f"- {date_str}{mem['content']}"
-            )
-
+            memory_lines.append(f"- {date_str}{mem['content']}")
         memory_text = "\n".join(memory_lines)
-
+        
         enhanced_prompt = f"""{SYSTEM_PROMPT}
-
-{current_time_text}
 
 【从过往对话中检索到的相关记忆】
 {memory_text}
@@ -320,10 +288,10 @@ current_time_text = (
 - 共同经历可温情回忆："上次那个事挺好玩的"
 
 记忆是丰富对话的工具，而非对话焦点。"""
-
+        
         print(f"📚 注入了 {len(memories)} 条相关记忆")
         return enhanced_prompt
-
+        
     except Exception as e:
         print(f"⚠️  记忆检索失败: {e}，使用纯人设")
         return SYSTEM_PROMPT
