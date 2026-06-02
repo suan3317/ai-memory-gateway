@@ -70,7 +70,7 @@ PARTITION_SESSION_ID = os.getenv("PARTITION_SESSION_ID", "")
 def get_active_session_id() -> str:
     return PARTITION_SESSION_ID
 
-# 时区偏移（小时），用于记忆注入时的日期显示
+# 时区偏移（小时）用于记忆注入时的日期显示
 TIMEZONE_HOURS = int(os.getenv("TIMEZONE_HOURS", "-7"))
 
 # 轮次计数器
@@ -238,18 +238,11 @@ templates = Jinja2Templates(directory="templates")
 # ============================================================
 
 async def build_system_prompt_with_memories(user_message: str) -> str:
-    """
-    Build system prompt with memories
-    1. Search memories using user message
-    2. Format and append to system prompt
-    """
-    # Get current time for Los Angeles / Seattle
     import datetime
     import pytz
     local_tz = pytz.timezone('America/Los_Angeles')
     current_time_str = datetime.datetime.now(local_tz).strftime('%Y-%m-%d %H:%M:%S %A')
     
-    # Replace the time placeholder
     current_system_prompt = SYSTEM_PROMPT.replace("{{CURRENT_TIME}}", current_time_str)
 
     if not MEMORY_ENABLED or not MEMORY_EXTRACT_ENABLED:
@@ -264,7 +257,6 @@ async def build_system_prompt_with_memories(user_message: str) -> str:
         if not memories:
             return current_system_prompt
 
-        # Format memories
         memory_lines = []
         for mem in memories:
             date_str = ""
@@ -279,16 +271,11 @@ async def build_system_prompt_with_memories(user_message: str) -> str:
             memory_lines.append(f"- {date_str}{mem['content']}")
         memory_text = "\n".join(memory_lines)
 
-        # Build final prompt with current_system_prompt
-        enhanced_prompt = f"""{current_system_prompt}
-
-【从过往对话中检索到的相关记忆】
-{memory_text}"""
+        enhanced_prompt = f"{current_system_prompt}\n\n[Context Memories]\n{memory_text}"
         return enhanced_prompt
 
     except Exception as e:
         return current_system_prompt
-
 
 # 记忆应用
 - 像朋友般自然运用这些记忆，不刻意展示
