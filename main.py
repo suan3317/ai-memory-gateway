@@ -70,8 +70,8 @@ PARTITION_SESSION_ID = os.getenv("PARTITION_SESSION_ID", "")
 def get_active_session_id() -> str:
     return PARTITION_SESSION_ID
 
-# 时区偏移（小时），用于记忆注入时的日期显示，默认 UTC+8
-TIMEZONE_HOURS = int(os.getenv("TIMEZONE_HOURS", "8"))
+# 时区偏移（小时），用于记忆注入时的日期显示
+TIMEZONE_HOURS = int(os.getenv("TIMEZONE_HOURS", "-7"))
 
 # 轮次计数器
 _round_counter = 0
@@ -241,20 +241,30 @@ async def build_system_prompt_with_memories(user_message: str) -> str:
     """
     构建带记忆的 system prompt
     1. 用用户消息搜索相关记忆
-    2. 格式化成文本拼接到人设后面
+    2. 格式化成本文拼接到人设后面
     """
+    # ====== 新增：实时获取西雅图/雷德蒙德当前时间并替换占位符 ======
+    import datetime
+    import pytz
+    local_tz = pytz.timezone('America/Los_Angeles')
+    current_time_str = datetime.datetime.now(local_tz).strftime('%Y-%m-%d %H:%M:%S %A')
+    
+    # 动态生成当前带有真实时间的提示词
+    current_system_prompt = SYSTEM_PROMPT.replace("{{CURRENT_TIME}}", current_time_str)
+    # ============================================================
+
     if not MEMORY_ENABLED or not MEMORY_EXTRACT_ENABLED:
-        return SYSTEM_PROMPT
-    
+        return current_system_prompt
+
     if MAX_MEMORIES_INJECT <= 0:
-        return SYSTEM_PROMPT
-    
+        return current_system_prompt
+
     try:
         memories = await search_memories(user_message, limit=MAX_MEMORIES_INJECT)
         
         if not memories:
-            return SYSTEM_PROMPT
-        
+            return current_system_prompt
+
         # 格式化记忆文本（带日期，帮助模型判断新旧）
         memory_lines = []
         for mem in memories:
@@ -262,19 +272,19 @@ async def build_system_prompt_with_memories(user_message: str) -> str:
             if mem.get("created_at"):
                 try:
                     utc_str = str(mem['created_at'])[:19]
-                    utc_dt = datetime.strptime(utc_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                    utc_dt = datetime.datetime.strptime(utc_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=datetime.timezone.utc)
                     local_dt = utc_dt + timedelta(hours=TIMEZONE_HOURS)
                     date_str = f"[{local_dt.strftime('%Y-%m-%d')}] "
                 except:
                     date_str = f"[{str(mem['created_at'])[:10]}] "
             memory_lines.append(f"- {date_str}{mem['content']}")
         memory_text = "\n".join(memory_lines)
-        
-        enhanced_prompt = f"""{SYSTEM_PROMPT}
+
+        # 注意：这里原本的 SYSTEM_PROMPT 换成了上面替换过时间戳的 current_system_prompt
+        enhanced_prompt = f"""{current_system_prompt}
 
 【从过往对话中检索到的相关记忆】
-{memory_text}
-
+{memory_text}"""
 # 记忆应用
 - 像朋友般自然运用这些记忆，不刻意展示
 - 仅在相关话题出现时引用，避免主动提及
