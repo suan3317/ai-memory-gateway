@@ -70,8 +70,8 @@ PARTITION_SESSION_ID = os.getenv("PARTITION_SESSION_ID", "")
 def get_active_session_id() -> str:
     return PARTITION_SESSION_ID
 
-# 时区偏移（小时）用于记忆注入时的日期显示
-TIMEZONE_HOURS = int(os.getenv("TIMEZONE_HOURS", "-7"))
+# 时区偏移（小时），用于记忆注入时的日期显示，默认 UTC+8
+TIMEZONE_HOURS = int(os.getenv("TIMEZONE_HOURS", "8"))
 
 # 轮次计数器
 _round_counter = 0
@@ -238,47 +238,39 @@ templates = Jinja2Templates(directory="templates")
 # ============================================================
 
 async def build_system_prompt_with_memories(user_message: str) -> str:
-    import datetime
-    import pytz
-    
-    # 1. 彻底不依赖外面，直接在内部定义好雷德蒙德/洛杉矶本地时区
-    local_tz = pytz.timezone('America/Los_Angeles')
-    current_time_str = datetime.datetime.now(local_tz).strftime('%Y-%m-%d %H:%M:%S %A')
-    
-    # 2. 正确异步获取基础人设
-    base_system_prompt = await get_system_prompt()
-    current_system_prompt = base_system_prompt.replace("{{CURRENT_TIME}}", current_time_str)
-
+    """
+    构建带记忆的 system prompt
+    1. 用用户消息搜索相关记忆
+    2. 格式化成文本拼接到人设后面
+    """
     if not MEMORY_ENABLED or not MEMORY_EXTRACT_ENABLED:
-        return current_system_prompt
-
+        return SYSTEM_PROMPT
+    
     if MAX_MEMORIES_INJECT <= 0:
-        return current_system_prompt
-
+        return SYSTEM_PROMPT
+    
     try:
         memories = await search_memories(user_message, limit=MAX_MEMORIES_INJECT)
         
         if not memories:
-            return current_system_prompt
-
+            return SYSTEM_PROMPT
+        
+        # 格式化记忆文本（带日期，帮助模型判断新旧）
         memory_lines = []
         for mem in memories:
             date_str = ""
             if mem.get("created_at"):
                 try:
                     utc_str = str(mem['created_at'])[:19]
-                    utc_dt = datetime.datetime.strptime(utc_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=datetime.timezone.utc)
-                    
-                    # 3. 这里同样直接使用内部 local_tz 进行时区转换，彻底丢弃外面那个可能报错的 TIMEZONE_HOURS
-                    local_dt = utc_dt.astimezone(local_tz)
+                    utc_dt = datetime.strptime(utc_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                    local_dt = utc_dt + timedelta(hours=TIMEZONE_HOURS)
                     date_str = f"[{local_dt.strftime('%Y-%m-%d')}] "
-                except Exception as timezone_err:
+                except:
                     date_str = f"[{str(mem['created_at'])[:10]}] "
             memory_lines.append(f"- {date_str}{mem['content']}")
         memory_text = "\n".join(memory_lines)
-
-        # 4. 用三个引号完美包裹所有中文注释规范，防止任何全角字符作妖
-        enhanced_prompt = f"""{current_system_prompt}
+        
+        enhanced_prompt = f"""{SYSTEM_PROMPT}
 
 【从过往对话中检索到的相关记忆】
 {memory_text}
@@ -296,13 +288,14 @@ async def build_system_prompt_with_memories(user_message: str) -> str:
 - 共同经历可温情回忆："上次那个事挺好玩的"
 
 记忆是丰富对话的工具，而非对话焦点。"""
-
-        print(f"🧬 注入了 {len(memories)} 条相关记忆")
+        
+        print(f"📚 注入了 {len(memories)} 条相关记忆")
         return enhanced_prompt
-
+        
     except Exception as e:
-        print(f"⚠️ 记忆检索失败: {e}, 使用纯人设")
-        return current_system_prompt
+        print(f"⚠️  记忆检索失败: {e}，使用纯人设")
+        return SYSTEM_PROMPT
+
 
 # ============================================================
 # 分区缓存（Partition Cache）
