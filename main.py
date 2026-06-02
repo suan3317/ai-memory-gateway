@@ -240,10 +240,12 @@ templates = Jinja2Templates(directory="templates")
 async def build_system_prompt_with_memories(user_message: str) -> str:
     import datetime
     import pytz
+    
+    # 1. 彻底不依赖外面，直接在内部定义好雷德蒙德/洛杉矶本地时区
     local_tz = pytz.timezone('America/Los_Angeles')
     current_time_str = datetime.datetime.now(local_tz).strftime('%Y-%m-%d %H:%M:%S %A')
     
-    # 正确修复：通过 await 异步获取真正的人设配置
+    # 2. 正确异步获取基础人设
     base_system_prompt = await get_system_prompt()
     current_system_prompt = base_system_prompt.replace("{{CURRENT_TIME}}", current_time_str)
 
@@ -266,14 +268,16 @@ async def build_system_prompt_with_memories(user_message: str) -> str:
                 try:
                     utc_str = str(mem['created_at'])[:19]
                     utc_dt = datetime.datetime.strptime(utc_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=datetime.timezone.utc)
-                    local_dt = utc_dt + datetime.timedelta(hours=TIMEZONE_HOURS)
+                    
+                    # 3. 这里同样直接使用内部 local_tz 进行时区转换，彻底丢弃外面那个可能报错的 TIMEZONE_HOURS
+                    local_dt = utc_dt.astimezone(local_tz)
                     date_str = f"[{local_dt.strftime('%Y-%m-%d')}] "
-                except:
+                except Exception as timezone_err:
                     date_str = f"[{str(mem['created_at'])[:10]}] "
             memory_lines.append(f"- {date_str}{mem['content']}")
         memory_text = "\n".join(memory_lines)
 
-        # 用三个引号完美包裹所有中文注释规范，防止任何全角字符作妖
+        # 4. 用三个引号完美包裹所有中文注释规范，防止任何全角字符作妖
         enhanced_prompt = f"""{current_system_prompt}
 
 【从过往对话中检索到的相关记忆】
