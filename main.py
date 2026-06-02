@@ -243,7 +243,9 @@ async def build_system_prompt_with_memories(user_message: str) -> str:
     local_tz = pytz.timezone('America/Los_Angeles')
     current_time_str = datetime.datetime.now(local_tz).strftime('%Y-%m-%d %H:%M:%S %A')
     
-    current_system_prompt = SYSTEM_PROMPT.replace("{{CURRENT_TIME}}", current_time_str)
+    # 正确修复：通过 await 异步获取真正的人设配置
+    base_system_prompt = await get_system_prompt()
+    current_system_prompt = base_system_prompt.replace("{{CURRENT_TIME}}", current_time_str)
 
     if not MEMORY_ENABLED or not MEMORY_EXTRACT_ENABLED:
         return current_system_prompt
@@ -271,7 +273,7 @@ async def build_system_prompt_with_memories(user_message: str) -> str:
             memory_lines.append(f"- {date_str}{mem['content']}")
         memory_text = "\n".join(memory_lines)
 
-        # 这里用三个引号完美开头，把下面的中文规范稳稳包裹在字符串里
+        # 用三个引号完美包裹所有中文注释规范，防止任何全角字符作妖
         enhanced_prompt = f"""{current_system_prompt}
 
 【从过往对话中检索到的相关记忆】
