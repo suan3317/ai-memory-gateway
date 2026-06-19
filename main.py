@@ -1031,8 +1031,7 @@ async def chat_completions(request: Request):
             else:
                 enhanced_prompt = SYSTEM_PROMPT
                 
-            # 注入当前时间（让 AI 知道现在几点、星期几，不影响正文）
-            enhanced_prompt = build_time_injection() + "\n\n" + enhanced_prompt
+    
             
             if enhanced_prompt:
                 has_system = any(msg.get("role") == "system" for msg in messages)
@@ -1043,7 +1042,15 @@ async def chat_completions(request: Request):
                             break
                 else:
                     messages.insert(0, {"role": "system", "content": enhanced_prompt})
-        
+        # 把当前时间拼到最后一条 user 消息末尾（放末尾不破坏前缀缓存）
+        for i in range(len(messages) - 1, -1, -1):
+            if messages[i].get("role") == "user":
+                c = messages[i]["content"]
+                if isinstance(c, str):
+                    messages[i]["content"] = c + "\n\n" + build_time_injection()
+                elif isinstance(c, list):
+                    c.append({"type": "text", "text": build_time_injection()})
+                break
         body["messages"] = messages
     
     # ---------- 模型处理 ----------
