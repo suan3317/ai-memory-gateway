@@ -1030,6 +1030,9 @@ async def chat_completions(request: Request):
                 enhanced_prompt = await build_system_prompt_with_memories(user_message)
             else:
                 enhanced_prompt = SYSTEM_PROMPT
+                
+            # 注入当前时间（让 AI 知道现在几点、星期几，不影响正文）
+            enhanced_prompt = build_time_injection() + "\n\n" + enhanced_prompt
             
             if enhanced_prompt:
                 has_system = any(msg.get("role") == "system" for msg in messages)
@@ -1052,7 +1055,15 @@ async def chat_completions(request: Request):
     # ---------- cache_control 兼容性处理 ----------
     if CACHE_PARTITION_ENABLED and not _is_anthropic_model(model):
         _strip_cache_control(body.get("messages", []))
-    
+    # ---------- 锁定 OpenRouter provider（只走指定服务商）----------
+    OR_PROVIDER_ONLY = os.getenv("OR_PROVIDER_ONLY", "")
+    if OR_PROVIDER_ONLY and "openrouter" in API_BASE_URL:
+        body["provider"] = {
+            "only": [p.strip() for p in OR_PROVIDER_ONLY.split(",") if p.strip()],
+            "allow_fallbacks": False,
+        }
+        print(f"🔒 锁定 provider: {OR_PROVIDER_ONLY}")
+   
     # ---------- 转发请求 ----------
     headers = {
         "Authorization": f"Bearer {API_KEY}",
