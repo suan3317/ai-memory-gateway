@@ -334,7 +334,7 @@ def build_time_injection() -> str:
     weekday_names = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
     weekday = weekday_names[now_local.weekday()]
     time_str = now_local.strftime("%Y年%m月%d日 %H:%M")
-    return f"【当前时间】{time_str} {weekday}"
+    return f"（系统信息·仅供参考，请勿主动提及或复述：当前时间为 {time_str} {weekday}。仅在用户明确询问时间、或话题确实涉及时间时才使用。）"
 
 
 async def generate_summary(messages: list, session_id: str = "") -> str:
